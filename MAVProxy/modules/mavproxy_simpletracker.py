@@ -35,8 +35,8 @@ class simpletracker(mp_module.MPModule):
               ('alt', float, 0.0),
               ('azimuth_offset_deg', float, 0.0),
               ('elevation_offset_deg', float, 0.0),
-              ('tracker_tty', str, "/dev/ttyUSB0"),
-              ('baudrate', int, 57600)
+              ('tracker_tty', str, "/dev/ttyACM0"),
+              ('baudrate', int, 115200)
           ])
         self.add_command('simpletracker', self.cmd_simpletracker, "simpletracker module", ['status','set', 'gcs_location'])
 
@@ -52,10 +52,10 @@ class simpletracker(mp_module.MPModule):
         self.elevation_min_pwm=1000
         self.elevation_max_pwm=2000
         self.last_idle_call=time.time()
-        self.tracker_angle_tx_interval=0.1
+        self.tracker_angle_tx_interval=0.5
         self.lock = threading.Lock()
         try:
-            self.ser = serial.Serial(self.simpletracker_settings.tracker_tty,self.simpletracker_settings.baudrate)
+            self.ser = serial.Serial(self.simpletracker_settings.tracker_tty, self.simpletracker_settings.baudrate, timeout=1, exclusive=False)
         except Exception, e:
             print("Error opening TTY port " + self.simpletracker_settings.tracker_tty)
     def usage(self):
@@ -78,7 +78,7 @@ class simpletracker(mp_module.MPModule):
                         self.say("error closing serial port: " + str(e))
                     try:
                         self.say("Trying to open port...")
-                        self.ser = serial.Serial(self.simpletracker_settings.tracker_tty, self.simpletracker_settings.baudrate)
+                        self.ser = serial.Serial(self.simpletracker_settings.tracker_tty, self.simpletracker_settings.baudrate, timeout=1, exclusive=False)
                     except Exception, e:
                         self.say("error opening serial port: " + str(e))
                 else:
@@ -89,6 +89,11 @@ class simpletracker(mp_module.MPModule):
             self.simpletracker_settings.command(['lat', args[1]])
             self.simpletracker_settings.command(['long', args[2]])
             self.simpletracker_settings.command(['alt', args[3]])
+        elif args[0] == "close_tty":
+            try:
+                self.ser.close()
+            except Exception, e:
+                self.say("error closing serial port: " + str(e))
         else:
             print(self.usage())
 
@@ -105,17 +110,23 @@ class simpletracker(mp_module.MPModule):
                 self.lock.acquire()
                 self.say("CGS Az: %f , El: %f" % (self.azimuth_deg,self.elevation_deg))
 
-                az_pwm=self.az_deg_to_pwm(self.azimuth_deg,self.azimuth_angle_span_deg)
-                el_pwm = self.el_deg_to_pwm(self.elevation_deg, self.elevation_angle_span_deg)
+                # az_pwm=self.az_deg_to_pwm(self.azimuth_deg,self.azimuth_angle_span_deg)
+                # el_pwm = self.el_deg_to_pwm(self.elevation_deg, self.elevation_angle_span_deg)
 
-                self.say("!!!PAN:%4.0f,TLT:%4.0f"%(az_pwm,el_pwm))
+                # self.say("!!!PAN:%4.0f,TLT:%4.0f"%(az_pwm,el_pwm))
 
                 #"!!!PAN:{0:0000},TLT:{1:0000}\n"
 
                 self.lock.release()
                 try:
                     if self.ser.is_open:
-                        self.ser.write("!!!PAN:%4.0f,TLT:%4.0f\n" % (az_pwm,el_pwm))
+                        # self.ser.write("!!!PAN:%4.0f,TLT:%4.0f\n" % (az_pwm,el_pwm))
+                        str_cmd="AzEl:%3.2f,%3.2f\n" % (self.azimuth_deg, self.elevation_deg)
+                        self.ser.write(str_cmd.encode())
+                        self.say(str_cmd.encode())
+                        line = self.ser.readline()
+                        if line.rstrip() != 'OK':
+                            self.say("CMD ERROR: " + str(line))
                     else:
                         self.say("TTY port not open")
                 except Exception, e:
