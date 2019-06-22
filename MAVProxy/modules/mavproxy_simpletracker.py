@@ -52,7 +52,7 @@ class simpletracker(mp_module.MPModule):
         self.elevation_deg = 0.0
         self.elevation_angle_span_deg = 180.0
         self.elevation_min_pwm = 1296
-        self.elevation_max_pwm = 1664
+        self.elevation_max_pwm = 1632
         self.last_idle_call = time.time()
         self.tracker_angle_tx_interval = 0.5
         self.lock = threading.Lock()
@@ -136,7 +136,7 @@ class simpletracker(mp_module.MPModule):
             self.say("CGS Az: %f , El: %f" % (self.azimuth_deg, self.elevation_deg))
 
             if self.tracker_type == 2:
-                az_pwm = self.az_deg_to_pwm(360.0-self.azimuth_deg, self.azimuth_angle_span_deg)
+                az_pwm = self.az_deg_to_pwm(180.0-self.azimuth_deg, self.azimuth_angle_span_deg)
                 el_pwm = self.el_deg_to_pwm(180.0-self.elevation_deg, self.elevation_angle_span_deg)
                 try:
                     self.servo.setTarget(0, int(az_pwm * 4))  # set Azimuth servo target position (ch 0)
@@ -170,9 +170,22 @@ class simpletracker(mp_module.MPModule):
             angle = angle + 360
         return angle
 
+    def clip_to_180(self, input_angle):
+        angle = math.fmod(input_angle, 360.0)
+        if angle < 0:
+            angle = angle + 360
+
+        if angle > 180:
+            if angle < 270:
+                angle = 180
+            else:
+                angle = 0
+
+        return angle
+
     def az_deg_to_pwm(self, angle_deg, angle_span_deg):
         # type: (object, object) -> object
-        pwm = self.azimuth_min_pwm + (self.azimuth_max_pwm - self.azimuth_min_pwm) * self.wrap_to_360(
+        pwm = self.azimuth_min_pwm + (self.azimuth_max_pwm - self.azimuth_min_pwm) * self.clip_to_180(
             angle_deg - self.simpletracker_settings.azimuth_offset_deg) / angle_span_deg
         if pwm > self.azimuth_max_pwm:
             pwm = self.azimuth_max_pwm
