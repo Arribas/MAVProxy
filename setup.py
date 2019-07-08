@@ -1,7 +1,7 @@
 from setuptools import setup
 import os, platform
 
-version = "1.8.6"
+version = "1.8.8"
 
 def package_files(directory):
     paths = []
@@ -16,7 +16,7 @@ package_data = ['modules/mavproxy_map/data/*.jpg',
                 'modules/mavproxy_joystick/joysticks/*.yml',
                 'modules/mavproxy_magical/data/*.mtl',
                 'modules/mavproxy_magical/data/*.obj',
-                'modules/mavproxy_cmac_check/*.txt',
+                'modules/mavproxy_fieldcheck/*.txt',
                 'tools/graphs/*.xml',
 ]
 
@@ -69,7 +69,7 @@ on how to use MAVProxy.''',
       license='GPLv3',
       packages=['MAVProxy',
                 'MAVProxy.modules',
-                'MAVProxy.modules.mavproxy_cmac_check',
+                'MAVProxy.modules.mavproxy_fieldcheck',
                 'MAVProxy.modules.mavproxy_map',
                 'MAVProxy.modules.mavproxy_mmap',
                 'MAVProxy.modules.mavproxy_misseditor',
@@ -82,6 +82,10 @@ on how to use MAVProxy.''',
                 'MAVProxy.modules.lib.MacOS',
                 'MAVProxy.modules.lib.optparse_gui'],
       install_requires=requirements,
+      extras_require={
+        # restserver module
+        'server': ['flask'],
+      },
       scripts=['MAVProxy/mavproxy.py',
                'MAVProxy/tools/mavflightview.py',
                'MAVProxy/tools/MAVExplorer.py',

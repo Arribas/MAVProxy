@@ -19,6 +19,7 @@ import os
 import os.path
 from pymavlink import mavutil
 import errno
+import sys
 
 from MAVProxy.modules.lib import mp_module
 import time
@@ -58,7 +59,7 @@ class dataflash_logger(mp_module.MPModule):
         self.add_command('dataflash_logger',
                          self.cmd_dataflash_logger,
                          "dataflash logging control",
-                         ['status', 'start', 'stop', 'set (LOGSETTING)'])
+                         ['status', 'start', 'stop', 'rotate', 'set (LOGSETTING)'])
         self.add_completion_function('(LOGSETTING)',
                                      self.log_settings.completion)
 
@@ -79,6 +80,8 @@ class dataflash_logger(mp_module.MPModule):
             self.stopped = False
         elif args[0] == "set":
             self.log_settings.command(args[1:])
+        elif args[0] == "rotate":
+            self.rotate_log()
         else:
             print(self.usage())
 
@@ -98,7 +101,10 @@ class dataflash_logger(mp_module.MPModule):
             log_cnt = 1
 
         self.lastlog_file = open(ll_filepath, 'w+b')
-        self.lastlog_file.write(log_cnt.__str__())
+        if sys.version_info[0] >= 3:
+            self.lastlog_file.write(str.encode(log_cnt.__str__()))
+        else:
+            self.lastlog_file.write(log_cnt.__str__())
         self.lastlog_file.close()
 
         return os.path.join(self.dataflash_dir, '%u.BIN' % (log_cnt,))
@@ -258,6 +264,32 @@ class dataflash_logger(mp_module.MPModule):
             mavutil.mavlink.MAV_REMOTE_LOG_DATA_BLOCK_START,
             1)
 
+    def rotate_log(self):
+        '''send a start packet and rotate log'''
+        now = time.time()
+        self.time_last_start_packet_sent = now
+
+        if self.log_settings.verbose:
+            print("DFLogger: rotating")
+
+        target_sys = self.log_settings.df_target_system
+        target_comp = self.log_settings.df_target_component
+
+        for i in range(3):
+            # send 3 stop packets
+            self.master.mav.remote_log_block_status_send(
+                target_sys,
+                target_comp,
+                mavutil.mavlink.MAV_REMOTE_LOG_DATA_BLOCK_STOP,
+                1)
+        
+        self.master.mav.remote_log_block_status_send(
+            target_sys,
+            target_comp,
+            mavutil.mavlink.MAV_REMOTE_LOG_DATA_BLOCK_START,
+            1)
+        self.start_new_log()
+
     def packet_is_for_me(self, m):
         '''returns true if this packet is appropriately addressed'''
         if m.target_system != self.master.mav.srcSystem:
@@ -320,7 +352,7 @@ class dataflash_logger(mp_module.MPModule):
 
             if self.sender is not None:
                 size = len(m.data)
-                data = ''.join(str(chr(x)) for x in m.data[:size])
+                data = bytearray(m.data[:size])
                 ofs = size*(m.seqno)
                 self.logfile.seek(ofs)
                 self.logfile.write(data)
